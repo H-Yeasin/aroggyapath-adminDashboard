@@ -16,7 +16,7 @@ export const useSocket = () => {
 
     // Create socket connection if it doesn't exist
     if (!socketInstance) {
-      const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:3001";
+      const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:5000";
       
       socketInstance = io(socketUrl, {
         query: {

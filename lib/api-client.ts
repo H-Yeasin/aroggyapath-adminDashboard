@@ -1,7 +1,7 @@
 import axios, { AxiosInstance } from "axios";
 import { getSession } from "next-auth/react";
 
-const baseURL = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3001/api";
+const baseURL = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:5000/api/v1";
 
 let axiosInstance: AxiosInstance;
 
@@ -173,13 +173,22 @@ export const patientsAPI = {
 
 // Appointments APIs
 export const appointmentsAPI = {
-  getAppointments: async (page = 1, limit = 10, search = "", status = "") => {
+  getAppointments: async (
+    page = 1,
+    limit = 10,
+    search = "",
+    status = "",
+    appointmentType = "",
+    paymentVerified = ""
+  ) => {
     const client = await getApiClient();
     const params = new URLSearchParams();
     params.append("page", page.toString());
     params.append("limit", limit.toString());
     if (search) params.append("search", search);
     if (status) params.append("status", status);
+    if (appointmentType) params.append("appointmentType", appointmentType);
+    if (paymentVerified) params.append("paymentVerified", paymentVerified);
     return client.get(`/appointment?${params.toString()}`);
   },
 
@@ -195,7 +204,17 @@ export const appointmentsAPI = {
 
   cancelAppointment: async (id: string) => {
     const client = await getApiClient();
-    return client.patch(`/appointment/${id}/cancel`, {});
+    return client.patch(`/appointment/${id}/status`, { status: "cancelled" });
+  },
+
+  approveVideoAppointment: async (id: string) => {
+    const client = await getApiClient();
+    return client.patch(`/appointment/${id}/admin-approve-video`, {});
+  },
+
+  rejectVideoAppointment: async (id: string, reason: string) => {
+    const client = await getApiClient();
+    return client.patch(`/appointment/${id}/admin-reject-video`, { reason });
   },
 };
 
