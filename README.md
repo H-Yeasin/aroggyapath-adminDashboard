@@ -37,10 +37,20 @@ For more detailed technical information, please refer to [TECHNICAL_DOCUMENTATIO
 Create a `.env.local` file in the root directory:
 
 ```env
-NEXT_PUBLIC_BASE_URL=http://localhost:3001/api
+NEXT_PUBLIC_BASE_URL=http://localhost:5000/api/v1
+NEXT_PUBLIC_SOCKET_URL=http://localhost:5000
+NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_SECRET=replace-with-a-long-random-secret
 ```
 
 Replace with your actual API base URL.
+
+MongoDB is configured in the backend app, not in this dashboard. For local development, set this in `../aroggyapath-backend/.env`:
+
+```env
+MONGO_DB_URL=mongodb://127.0.0.1:27017/aroggyapath
+PORT=5000
+```
 
 ## API Integration
 

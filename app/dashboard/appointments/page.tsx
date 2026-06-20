@@ -30,7 +30,7 @@ import {
 import { appointmentsAPI } from "@/lib/api-client";
 import { TableSkeleton } from "@/components/skeletons";
 import { toast } from "sonner";
-import { Search, Calendar, Clock } from "lucide-react";
+import { Search, Calendar, Clock, CheckCircle, XCircle, Video } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import Loading from "./loading";
@@ -40,14 +40,21 @@ export default function AppointmentsPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
+  const [appointmentType, setAppointmentType] = useState("all");
   const queryClient = useQueryClient();
   const ITEMS_PER_PAGE = 10;
   const searchParams = useSearchParams();
 
   const { data: response, isLoading } = useQuery({
-    queryKey: ["appointments", page, search, status],
+    queryKey: ["appointments", page, search, status, appointmentType],
     queryFn: () =>
-      appointmentsAPI.getAppointments(page, ITEMS_PER_PAGE, search, status),
+      appointmentsAPI.getAppointments(
+        page,
+        ITEMS_PER_PAGE,
+        search,
+        status,
+        appointmentType,
+      ),
   });
 
   const cancelMutation = useMutation({
@@ -59,6 +66,33 @@ export default function AppointmentsPage() {
     onError: (error: any) => {
       toast.error(
         error.response?.data?.message || "Failed to cancel appointment",
+      );
+    },
+  });
+
+  const approveVideoMutation = useMutation({
+    mutationFn: (id: string) => appointmentsAPI.approveVideoAppointment(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["appointments"] });
+      toast.success("Video appointment approved");
+    },
+    onError: (error: any) => {
+      toast.error(
+        error.response?.data?.message || "Failed to approve appointment",
+      );
+    },
+  });
+
+  const rejectVideoMutation = useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) =>
+      appointmentsAPI.rejectVideoAppointment(id, reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["appointments"] });
+      toast.success("Video appointment rejected");
+    },
+    onError: (error: any) => {
+      toast.error(
+        error.response?.data?.message || "Failed to reject appointment",
       );
     },
   });
@@ -81,6 +115,24 @@ export default function AppointmentsPage() {
       default:
         return "bg-gray-100 text-gray-800";
     }
+  };
+
+  const getPatientStatusLabel = (appointment: any) => {
+    const normalizedStatus = appointment.status?.toLowerCase();
+    if (appointment.appointmentType === "video" && normalizedStatus === "pending") {
+      return "Payment Verification Pending";
+    }
+    if (appointment.appointmentType === "video" && normalizedStatus === "accepted") {
+      return "Booking Successful";
+    }
+    if (normalizedStatus === "accepted") return "Confirmed";
+    return appointment.status?.charAt(0).toUpperCase() + appointment.status?.slice(1);
+  };
+
+  const handleRejectVideo = (id: string) => {
+    const reason = window.prompt("Reason for rejecting this video appointment?");
+    if (!reason?.trim()) return;
+    rejectVideoMutation.mutate({ id, reason: reason.trim() });
   };
 
   return (
@@ -130,6 +182,22 @@ export default function AppointmentsPage() {
                   <SelectItem value="cancelled">Cancelled</SelectItem>
                 </SelectContent>
               </Select>
+              <Select
+                value={appointmentType}
+                onValueChange={(val) => {
+                  setAppointmentType(val);
+                  setPage(1);
+                }}
+              >
+                <SelectTrigger className="w-full md:w-48">
+                  <SelectValue placeholder="All Types" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  <SelectItem value="physical">Physical</SelectItem>
+                  <SelectItem value="video">Video Call</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </CardContent>
         </Card>
@@ -154,7 +222,9 @@ export default function AppointmentsPage() {
                       <TableHead>Patient Name</TableHead>
                       <TableHead>Doctors Name</TableHead>
                       <TableHead>Time</TableHead>
+                      <TableHead>Type</TableHead>
                       <TableHead>Fees</TableHead>
+                      <TableHead>Payment</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
@@ -190,6 +260,22 @@ export default function AppointmentsPage() {
                             </span>
                           </div>
                         </TableCell>
+                        <TableCell>
+                          <Badge
+                            className={
+                              appointment.appointmentType === "video"
+                                ? "bg-indigo-100 text-indigo-800"
+                                : "bg-teal-100 text-teal-800"
+                            }
+                          >
+                            {appointment.appointmentType === "video" && (
+                              <Video className="h-3 w-3 mr-1" />
+                            )}
+                            {appointment.appointmentType === "video"
+                              ? "Video Call"
+                              : "Physical"}
+                          </Badge>
+                        </TableCell>
                         <TableCell className="text-sm font-medium flex items-center gap-2">
                           <Image
                             src="/Algerian-dinar.png"
@@ -201,14 +287,55 @@ export default function AppointmentsPage() {
                           {appointment.doctor?.fees?.amount || 0}{" "}
                         </TableCell>
                         <TableCell>
+                          {appointment.appointmentType === "video" ? (
+                            <Badge
+                              className={
+                                appointment.paymentVerified
+                                  ? "bg-green-100 text-green-800"
+                                  : "bg-orange-100 text-orange-800"
+                              }
+                            >
+                              {appointment.paymentVerified
+                                ? "Verified"
+                                : "Manual Check"}
+                            </Badge>
+                          ) : (
+                            <span className="text-sm text-gray-500">Clinic</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
                           <Badge className={getStatusColor(appointment.status)}>
-                            {appointment.status?.charAt(0).toUpperCase() +
-                              appointment.status?.slice(1) || "Pending"}
+                            {getPatientStatusLabel(appointment) || "Pending"}
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          {appointment.status?.toLowerCase() !==
-                            "cancelled" && (
+                          {appointment.appointmentType === "video" &&
+                          appointment.status?.toLowerCase() === "pending" ? (
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                className="bg-green-600 hover:bg-green-700"
+                                onClick={() =>
+                                  approveVideoMutation.mutate(appointment._id)
+                                }
+                                disabled={approveVideoMutation.isPending}
+                              >
+                                <CheckCircle className="h-4 w-4 mr-1" />
+                                Approve
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-red-600 hover:text-red-700 bg-transparent"
+                                onClick={() => handleRejectVideo(appointment._id)}
+                                disabled={rejectVideoMutation.isPending}
+                              >
+                                <XCircle className="h-4 w-4 mr-1" />
+                                Reject
+                              </Button>
+                            </div>
+                          ) : appointment.status?.toLowerCase() !==
+                            "cancelled" ? (
                             <Button
                               size="sm"
                               variant="outline"
@@ -220,7 +347,7 @@ export default function AppointmentsPage() {
                             >
                               Cancel
                             </Button>
-                          )}
+                          ) : null}
                         </TableCell>
                       </TableRow>
                     ))}
